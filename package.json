@@ -1,0 +1,35 @@
+{
+  "name": "bakugo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "ts-node src/index.ts",
+    "watch": "nodemon --exec ts-node src/index.ts --ext ts"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://local_proxy@127.0.0.1:37543/git/Yungtimmy/Bakugo"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@jup-ag/api": "^6.0.48",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "axios": "^1.17.0",
+    "bs58": "^6.0.0",
+    "dotenv": "^17.4.2",
+    "telegraf": "^4.16.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.2",
+    "nodemon": "^3.1.14",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^6.0.3"
+  }
+}
