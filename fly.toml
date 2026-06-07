@@ -1,0 +1,14 @@
+app = 'bakugo'
+primary_region = 'arn'
+
+[build]
+
+# No HTTP service — this is a headless background bot
+
+[[vm]]
+  memory = '1gb'
+  cpu_kind = 'shared'
+  cpus = 1
+
+[deploy]
+  strategy = 'immediate'
