@@ -1,12 +1,24 @@
+import http from 'http';
 import { config } from './config';
 import { logger } from './utils/logger';
 import { TelegramBot } from './bot/telegram';
 import { WalletMonitor } from './services/walletMonitor';
 
+function startHealthServer() {
+  const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', uptime: process.uptime() }));
+  });
+  server.listen(3000, () => logger.info('Health check server on port 3000'));
+  return server;
+}
+
 async function main() {
   logger.info('Starting Bakugo — USDC → SOL swap+burn bot');
   logger.info(`RPC: ${config.rpcUrl}`);
   logger.info(`Wallets configured: ${config.walletPrivateKeys.length}`);
+
+  startHealthServer();
 
   const telegramBot = new TelegramBot();
   const monitor = new WalletMonitor((params) => {
