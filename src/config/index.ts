@@ -8,9 +8,6 @@ function required(key: string): string {
 }
 
 export const config = {
-  telegramBotToken: required('TELEGRAM_BOT_TOKEN'),
-  telegramChatId: required('TELEGRAM_CHAT_ID'),
-
   // Up to 3 wallet private keys (base58 encoded)
   walletPrivateKeys: [
     process.env.WALLET_PRIVATE_KEY_1,
@@ -27,7 +24,7 @@ export const config = {
   minUsdcThreshold: 10_000,
 
   // Jupiter unified API (lite-api.jup.ag avoids Fly.io DNS blocks on quote-api.jup.ag)
-  jupiterApiUrl: 'https://lite-api.jup.ag/v6',
+  jupiterApiUrl: 'https://lite-api.jup.ag/swap/v1',
 
   // Poll interval ms (websocket preferred, polling as fallback)
   pollIntervalMs: 5000,

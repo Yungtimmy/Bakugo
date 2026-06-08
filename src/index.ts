@@ -1,7 +1,6 @@
 import http from 'http';
 import { config } from './config';
 import { logger } from './utils/logger';
-import { TelegramBot } from './bot/telegram';
 import { WalletMonitor } from './services/walletMonitor';
 
 function startHealthServer() {
@@ -17,28 +16,20 @@ async function main() {
   logger.info('Starting Bakugo — USDC → SOL swap+burn bot');
   logger.info(`RPC: ${config.rpcUrl}`);
   logger.info(`Wallets configured: ${config.walletPrivateKeys.length}`);
+  logger.info(`Jupiter API: ${config.jupiterApiUrl}`);
 
   startHealthServer();
 
-  const telegramBot = new TelegramBot();
   const monitor = new WalletMonitor((params) => {
-    logger.info(`Swap+burn complete for ${params.walletAddress}: ${params.usdcFormatted} USDC`);
-    telegramBot.notifySwapBurn(params);
+    logger.info(`✅ Swap+burn complete | wallet: ${params.walletAddress} | ${params.usdcFormatted} USDC | swap: ${params.swapTx} | burn: ${params.burnTx ?? 'skipped'}`);
   });
 
-  // Start wallet monitor immediately — does not depend on Telegram
   await monitor.start();
   logger.info('Bakugo is running. Monitoring for incoming USDC...');
-
-  // Start Telegram bot in background — retries on 409 without blocking monitor
-  telegramBot.start().catch((e) => {
-    logger.error('Telegram bot failed to start after all retries:', e);
-  });
 
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}, shutting down...`);
     await monitor.stop();
-    await telegramBot.stop();
     process.exit(0);
   };
 
