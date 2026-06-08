@@ -26,8 +26,8 @@ export const config = {
   // Minimum USDC (in lamports / token units) to trigger swap — 0.01 USDC
   minUsdcThreshold: 10_000,
 
-  // Jupiter v6 API
-  jupiterApiUrl: 'https://quote-api.jup.ag/v6',
+  // Jupiter unified API (lite-api.jup.ag avoids Fly.io DNS blocks on quote-api.jup.ag)
+  jupiterApiUrl: 'https://lite-api.jup.ag/v6',
 
   // Poll interval ms (websocket preferred, polling as fallback)
   pollIntervalMs: 5000,
