@@ -61,12 +61,12 @@ export class WalletMonitor {
       logger.info(`Monitoring wallet: ${wallet.publicKey.toBase58()}`);
     }
 
-    // Try websocket first, fall back to polling
-    await this.startWebsocketSubscriptions();
-
-    // Polling fallback runs alongside websocket — catches missed events
+    // Polling is the primary detection method — reliable and rate-limit safe
     this.pollTimer = setInterval(() => this.pollAll(), config.pollIntervalMs);
-    logger.info(`Polling active every ${config.pollIntervalMs}ms as fallback`);
+    logger.info(`Polling active every ${config.pollIntervalMs}ms`);
+
+    // Websocket subscriptions as a bonus (best-effort, failures are silent)
+    this.startWebsocketSubscriptions().catch(() => {});
   }
 
   async stop(): Promise<void> {
