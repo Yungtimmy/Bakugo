@@ -4,10 +4,27 @@ import {
   VersionedTransaction,
 } from '@solana/web3.js';
 import axios from 'axios';
+import https from 'https';
+import { Resolver } from 'dns';
 import { config } from '../config';
 import { logger } from '../utils/logger';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
+
+// Custom DNS resolver using Google's servers — bypasses Fly.io's broken resolver
+const dnsResolver = new Resolver();
+dnsResolver.setServers(['8.8.8.8', '8.8.4.4']);
+
+const httpsAgent = new https.Agent({
+  lookup: (hostname, _opts, callback) => {
+    dnsResolver.resolve4(hostname, (err, addresses) => {
+      if (err) return callback(err, '', 4);
+      callback(null, addresses[0], 4);
+    });
+  },
+});
+
+const jupiterAxios = axios.create({ httpsAgent, timeout: 15000 });
 
 interface QuoteResponse {
   inputMint: string;
@@ -49,7 +66,7 @@ export async function swapUsdcToSol(
 
   // 1. Get quote with retry
   const quoteRes = await withRetry(
-    () => axios.get<QuoteResponse>(`${config.jupiterApiUrl}/quote`, {
+    () => jupiterAxios.get<QuoteResponse>(`${config.jupiterApiUrl}/quote`, {
       params: {
         inputMint: config.usdcMint,
         outputMint: SOL_MINT,
@@ -68,7 +85,7 @@ export async function swapUsdcToSol(
 
   // 2. Get swap transaction with retry
   const swapRes = await withRetry(
-    () => axios.post(`${config.jupiterApiUrl}/swap`, {
+    () => jupiterAxios.post(`${config.jupiterApiUrl}/swap`, {
       quoteResponse: quote,
       userPublicKey: wallet.publicKey.toBase58(),
       wrapAndUnwrapSol: true,
