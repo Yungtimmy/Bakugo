@@ -1,9 +1,4 @@
 import http from 'http';
-import { setServers, setDefaultResultOrder } from 'dns';
-
-// Force Google DNS — fixes ENOTFOUND on Fly.io lax region
-setServers(['8.8.8.8', '8.8.4.4']);
-setDefaultResultOrder('ipv4first');
 import { config } from './config';
 import { logger } from './utils/logger';
 import { TelegramBot } from './bot/telegram';
