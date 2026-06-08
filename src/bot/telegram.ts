@@ -116,8 +116,23 @@ export class TelegramBot {
   }
 
   async start(): Promise<void> {
-    await this.bot.launch();
-    logger.info('Telegram bot launched');
+    // Retry loop — handles 409 conflicts from previous crashed instances
+    // Telegram holds the old session for ~30s before releasing it
+    for (let attempt = 1; attempt <= 10; attempt++) {
+      try {
+        await this.bot.launch();
+        logger.info('Telegram bot launched');
+        return;
+      } catch (e: any) {
+        if (e?.response?.error_code === 409) {
+          logger.warn(`Telegram 409 conflict (attempt ${attempt}/10) — waiting 10s for previous session to expire...`);
+          await new Promise((r) => setTimeout(r, 10_000));
+        } else {
+          throw e;
+        }
+      }
+    }
+    throw new Error('Failed to launch Telegram bot after 10 attempts');
   }
 
   async stop(): Promise<void> {
