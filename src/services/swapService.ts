@@ -10,32 +10,43 @@ import { config } from '../config';
 import { logger } from '../utils/logger';
 
 const SOL_MINT = 'So11111111111111111111111111111111111111112';
+const JUPITER_HOST = 'lite-api.jup.ag';
 
-// Custom DNS resolver using Google's servers — bypasses Fly.io's broken resolver
+// Resolve Jupiter IP via Google DNS to bypass Fly.io's broken resolver
 const dnsResolver = new Resolver();
-dnsResolver.setServers(['8.8.8.8', '8.8.4.4']);
+dnsResolver.setServers(['8.8.8.8', '1.1.1.1']);
 
-const httpsAgent = new https.Agent({
-  lookup: (hostname, _opts, callback) => {
-    dnsResolver.resolve4(hostname, (err4, v4) => {
-      if (!err4 && v4?.length) {
-        logger.debug(`DNS ${hostname} → ${v4[0]} (IPv4)`);
-        return callback(null, v4[0], 4);
+let jupiterIp: string | null = null;
+
+async function getJupiterIp(): Promise<string> {
+  if (jupiterIp) return jupiterIp;
+  return new Promise((resolve) => {
+    dnsResolver.resolve4(JUPITER_HOST, (err, addresses) => {
+      if (!err && addresses?.length) {
+        jupiterIp = addresses[0];
+        logger.info(`Jupiter resolved: ${JUPITER_HOST} → ${jupiterIp}`);
+        resolve(jupiterIp);
+      } else {
+        logger.warn(`Jupiter DNS failed, using hostname`);
+        resolve(JUPITER_HOST);
       }
-      dnsResolver.resolve6(hostname, (err6, v6) => {
-        if (!err6 && v6?.length) {
-          logger.debug(`DNS ${hostname} → ${v6[0]} (IPv6)`);
-          return callback(null, v6[0], 6);
-        }
-        // Both failed — let system resolver try
-        logger.warn(`Custom DNS failed for ${hostname}, falling back to system resolver`);
-        callback(null, hostname, 4);
-      });
     });
-  },
-});
+  });
+}
 
-const jupiterAxios = axios.create({ httpsAgent, timeout: 15000 });
+// Connect to resolved IP but send correct SNI/Host so TLS cert matches
+async function makeJupiterRequest<T>(method: 'get' | 'post', path: string, data?: unknown, params?: unknown): Promise<T> {
+  const ip = await getJupiterIp();
+  const url = `https://${ip}/v6${path}`;
+  const agent = new https.Agent({ servername: JUPITER_HOST });
+  const headers = { Host: JUPITER_HOST };
+
+  const res = method === 'get'
+    ? await axios.get<T>(url, { params, headers, httpsAgent: agent, timeout: 15000 })
+    : await axios.post<T>(url, data, { headers, httpsAgent: agent, timeout: 15000 });
+
+  return res.data;
+}
 
 interface QuoteResponse {
   inputMint: string;
@@ -54,10 +65,11 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 5): P
     try {
       return await fn();
     } catch (e: any) {
-      const isNetworkErr = e?.code === 'ENOTFOUND' || e?.code === 'ECONNRESET' || e?.code === 'ETIMEDOUT';
-      if (isNetworkErr && attempt < retries) {
+      const retriable = ['ENOTFOUND', 'ECONNRESET', 'ETIMEDOUT', 'ENODATA'].includes(e?.code);
+      if (retriable && attempt < retries) {
+        jupiterIp = null; // force re-resolve on next attempt
         const delay = attempt * 3000;
-        logger.warn(`${label} failed (attempt ${attempt}/${retries}), retrying in ${delay / 1000}s... [${e.code}]`);
+        logger.warn(`${label} failed (attempt ${attempt}/${retries}), retrying in ${delay / 1000}s... [${e.code ?? e.message}]`);
         await new Promise((r) => setTimeout(r, delay));
       } else {
         throw e;
@@ -75,41 +87,35 @@ export async function swapUsdcToSol(
   const tag = `[${wallet.publicKey.toBase58().slice(0, 8)}]`;
   logger.info(`${tag} Swapping ${usdcAmount} USDC lamports → SOL`);
 
-  // 1. Get quote with retry
-  const quoteRes = await withRetry(
-    () => jupiterAxios.get<QuoteResponse>(`${config.jupiterApiUrl}/quote`, {
-      params: {
-        inputMint: config.usdcMint,
-        outputMint: SOL_MINT,
-        amount: usdcAmount.toString(),
-        slippageBps: config.slippageBps,
-        onlyDirectRoutes: false,
-      },
-      timeout: 15000,
+  // 1. Get quote
+  const quote = await withRetry(
+    () => makeJupiterRequest<QuoteResponse>('get', '/quote', undefined, {
+      inputMint: config.usdcMint,
+      outputMint: SOL_MINT,
+      amount: usdcAmount.toString(),
+      slippageBps: config.slippageBps,
+      onlyDirectRoutes: false,
     }),
     `${tag} Jupiter quote`,
   );
 
-  const quote = quoteRes.data;
   const outSol = Number(quote.outAmount) / 1e9;
   logger.info(`${tag} Quote: ${usdcAmount} USDC → ~${outSol.toFixed(6)} SOL (impact: ${quote.priceImpactPct}%)`);
 
-  // 2. Get swap transaction with retry
-  const swapRes = await withRetry(
-    () => jupiterAxios.post(`${config.jupiterApiUrl}/swap`, {
+  // 2. Get swap transaction
+  const swapData = await withRetry(
+    () => makeJupiterRequest<{ swapTransaction: string }>('post', '/swap', {
       quoteResponse: quote,
       userPublicKey: wallet.publicKey.toBase58(),
       wrapAndUnwrapSol: true,
       dynamicComputeUnitLimit: true,
       prioritizationFeeLamports: 'auto',
-    }, { timeout: 15000 }),
+    }),
     `${tag} Jupiter swap`,
   );
 
-  const { swapTransaction } = swapRes.data as { swapTransaction: string };
-
   // 3. Deserialize, sign, send
-  const txBuf = Buffer.from(swapTransaction, 'base64');
+  const txBuf = Buffer.from(swapData.swapTransaction, 'base64');
   const tx = VersionedTransaction.deserialize(txBuf);
   tx.sign([wallet]);
 
