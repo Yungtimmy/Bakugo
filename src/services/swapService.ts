@@ -17,12 +17,19 @@ dnsResolver.setServers(['8.8.8.8', '8.8.4.4']);
 
 const httpsAgent = new https.Agent({
   lookup: (hostname, _opts, callback) => {
-    // Try IPv4 first, fall back to IPv6
     dnsResolver.resolve4(hostname, (err4, v4) => {
-      if (!err4 && v4?.length) return callback(null, v4[0], 4);
+      if (!err4 && v4?.length) {
+        logger.debug(`DNS ${hostname} → ${v4[0]} (IPv4)`);
+        return callback(null, v4[0], 4);
+      }
       dnsResolver.resolve6(hostname, (err6, v6) => {
-        if (!err6 && v6?.length) return callback(null, v6[0], 6);
-        callback(err4 ?? err6 ?? new Error(`No DNS for ${hostname}`), '', 4);
+        if (!err6 && v6?.length) {
+          logger.debug(`DNS ${hostname} → ${v6[0]} (IPv6)`);
+          return callback(null, v6[0], 6);
+        }
+        // Both failed — let system resolver try
+        logger.warn(`Custom DNS failed for ${hostname}, falling back to system resolver`);
+        callback(null, hostname, 4);
       });
     });
   },
