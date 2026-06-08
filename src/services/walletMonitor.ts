@@ -61,12 +61,9 @@ export class WalletMonitor {
       logger.info(`Monitoring wallet: ${wallet.publicKey.toBase58()}`);
     }
 
-    // Polling is the primary detection method — reliable and rate-limit safe
+    // Polling only — websockets cause 429s on QuickNode free tier
     this.pollTimer = setInterval(() => this.pollAll(), config.pollIntervalMs);
     logger.info(`Polling active every ${config.pollIntervalMs}ms`);
-
-    // Websocket subscriptions as a bonus (best-effort, failures are silent)
-    this.startWebsocketSubscriptions().catch(() => {});
   }
 
   async stop(): Promise<void> {
@@ -172,8 +169,8 @@ export class WalletMonitor {
         swapTx,
         burnTx,
       });
-    } catch (e) {
-      logger.error(`[${walletShort}] Swap+burn failed:`, e);
+    } catch (e: any) {
+      logger.error(`[${walletShort}] Swap+burn failed: ${e?.message ?? e}`);
       state.lastKnownBalance = BigInt(0); // reset so it retries on next poll
     } finally {
       state.processing = false;

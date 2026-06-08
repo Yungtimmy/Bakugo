@@ -1,10 +1,8 @@
 import http from 'http';
-import { setDefaultResultOrder } from 'dns';
-import { Resolver } from 'dns/promises';
+import { setServers, setDefaultResultOrder } from 'dns';
 
-// Override DNS to use Google's resolvers — fixes ENOTFOUND on Fly.io
-const resolver = new Resolver();
-resolver.setServers(['8.8.8.8', '8.8.4.4']);
+// Force Google DNS — fixes ENOTFOUND on Fly.io lax region
+setServers(['8.8.8.8', '8.8.4.4']);
 setDefaultResultOrder('ipv4first');
 import { config } from './config';
 import { logger } from './utils/logger';
