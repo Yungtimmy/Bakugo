@@ -116,23 +116,27 @@ export class TelegramBot {
   }
 
   async start(): Promise<void> {
-    // Retry loop — handles 409 conflicts from previous crashed instances
-    // Telegram holds the old session for ~30s before releasing it
-    for (let attempt = 1; attempt <= 10; attempt++) {
+    for (let attempt = 1; attempt <= 20; attempt++) {
       try {
         await this.bot.launch();
         logger.info('Telegram bot launched');
         return;
       } catch (e: any) {
-        if (e?.response?.error_code === 409) {
-          logger.warn(`Telegram 409 conflict (attempt ${attempt}/10) — waiting 10s for previous session to expire...`);
-          await new Promise((r) => setTimeout(r, 10_000));
+        const code = e?.response?.error_code;
+        if (code === 409) {
+          logger.warn(`Telegram 409 conflict (attempt ${attempt}/20) — waiting 15s...`);
+          await new Promise((r) => setTimeout(r, 15_000));
+        } else if (code === 429) {
+          // Rate limited — Telegram tells us how long to wait
+          const retryAfter = (e?.response?.parameters?.retry_after ?? 60) as number;
+          logger.warn(`Telegram 429 rate limited (attempt ${attempt}/20) — waiting ${retryAfter}s...`);
+          await new Promise((r) => setTimeout(r, retryAfter * 1000));
         } else {
           throw e;
         }
       }
     }
-    throw new Error('Failed to launch Telegram bot after 10 attempts');
+    throw new Error('Failed to launch Telegram bot after 20 attempts');
   }
 
   async stop(): Promise<void> {
