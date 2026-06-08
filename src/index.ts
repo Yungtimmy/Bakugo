@@ -26,10 +26,15 @@ async function main() {
     telegramBot.notifySwapBurn(params);
   });
 
-  await telegramBot.start();
+  // Start wallet monitor immediately — does not depend on Telegram
   await monitor.start();
+  logger.info('Bakugo is running. Monitoring for incoming USDC...');
 
-  // Graceful shutdown
+  // Start Telegram bot in background — retries on 409 without blocking monitor
+  telegramBot.start().catch((e) => {
+    logger.error('Telegram bot failed to start after all retries:', e);
+  });
+
   const shutdown = async (signal: string) => {
     logger.info(`Received ${signal}, shutting down...`);
     await monitor.stop();
@@ -39,12 +44,9 @@ async function main() {
 
   process.on('SIGTERM', () => shutdown('SIGTERM'));
   process.on('SIGINT', () => shutdown('SIGINT'));
-
   process.on('unhandledRejection', (reason) => {
     logger.error('Unhandled rejection:', reason);
   });
-
-  logger.info('Bakugo is running. Monitoring for incoming USDC...');
 }
 
 main().catch((err) => {
