@@ -17,9 +17,13 @@ dnsResolver.setServers(['8.8.8.8', '8.8.4.4']);
 
 const httpsAgent = new https.Agent({
   lookup: (hostname, _opts, callback) => {
-    dnsResolver.resolve4(hostname, (err, addresses) => {
-      if (err) return callback(err, '', 4);
-      callback(null, addresses[0], 4);
+    // Try IPv4 first, fall back to IPv6
+    dnsResolver.resolve4(hostname, (err4, v4) => {
+      if (!err4 && v4?.length) return callback(null, v4[0], 4);
+      dnsResolver.resolve6(hostname, (err6, v6) => {
+        if (!err6 && v6?.length) return callback(null, v6[0], 6);
+        callback(err4 ?? err6 ?? new Error(`No DNS for ${hostname}`), '', 4);
+      });
     });
   },
 });
