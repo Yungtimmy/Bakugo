@@ -26,8 +26,8 @@ export const config = {
   // Jupiter unified API (lite-api.jup.ag avoids Fly.io DNS blocks on quote-api.jup.ag)
   jupiterApiUrl: 'https://lite-api.jup.ag/swap/v1',
 
-  // Poll interval ms (websocket preferred, polling as fallback)
-  pollIntervalMs: 5000,
+  // Poll interval ms
+  pollIntervalMs: parseInt(process.env.POLL_INTERVAL_MS ?? '30000', 10),
 
   // Slippage in bps (0.5%)
   slippageBps: 50,
